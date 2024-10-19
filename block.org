@@ -37,16 +37,6 @@ Start by defining the structure of a block.
 
 #+RESULTS: block_struct
 
-Now create a structure for transactions. (String for addresses for simplicity) 
-#+name: transaction_struct
-#+begin_src C
-  <<block_struct>>
-
-
-
-#+end_src
-
-#+RESULTS: transaction_struct
 
 Create a function that takes the data of the =Block=
 and generates a SHA256 hash of it, using the OpenSSL's 
