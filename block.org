@@ -1,0 +1,200 @@
+#+TITLE: Blockchain in C
+#+AUTHOR: Cristian Del Gobbo
+#+SUBTITLE: CSC 240 - Data structures with C++ - Lyon College, FA24
+#+STARTUP:overview hideblocks indent
+#+OPTIONS: toc:1 num:2 ^:nil
+#+PROPERTY: header-args:C++ :main yes :includes <iostream> :results output :exports both :noweb yes
+#+PROPERTY: header-args:C :main yes :includes <stdio.h> <stdlib.h> <time.h> <openssl/sha.h> <string.h> :results output :exports both :noweb yes
+
+* Introduction
+* Code
+Start by defining the structure of a block.
+#+name: block_struct
+#+begin_src C 
+  #include <openssl/sha.h>
+  #define SIZE_BLOCKCHAIN 16
+  #define DIFFICULTY 4  
+
+  // Define transaction structure
+  typedef struct {
+    char sender[50];
+    char receiver[50];
+    float amount;
+    char signature[256];
+  } Transaction;
+
+
+  struct Block{
+    int index;
+    long timestamp;
+    int nonce;
+    char previous_hash[SHA256_DIGEST_LENGTH*2+1];
+    char hash[SHA256_DIGEST_LENGTH*2+1];
+    Transaction* transaction;
+  };
+
+  #+end_src
+
+#+RESULTS: block_struct
+
+Now create a structure for transactions. (String for addresses for simplicity) 
+#+name: transaction_struct
+#+begin_src C
+  <<block_struct>>
+
+
+
+#+end_src
+
+#+RESULTS: transaction_struct
+
+Create a function that takes the data of the =Block=
+and generates a SHA256 hash of it, using the OpenSSL's 
+Library.
+
+#+name: hash_func
+#+begin_src C
+  <<transaction_struct>>
+
+  void sha256(const char* str, char outputBuffer[65]){
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, str, strlen(str));
+    SHA256_Final(hash, &sha256);
+    for(int i = 0; i<SHA256_DIGEST_LENGTH; i++){
+      sprintf(outputBuffer + (i*2), "%02x", hash[i]);
+    }
+    outputBuffer[64] = 0;
+    }
+#+end_src
+
+#+RESULTS: hash_func
+
+It's time to create the =Genesis Block=! This is the first block in the blockchain.
+It has no previous blocks, therefore its previous hash is typically all zeros.
+
+#+name: genesis
+#+begin_src C
+  <<hash_func>>
+  struct Block create_genesis_block(){
+    struct Block genesis;
+    genesis.index = 0;
+    genesis.timestamp = time(NULL);
+    genesis.nonce = 0;
+    strcpy(genesis.previous_hash, "0");
+
+    sha256("Genesis Block", genesis.hash);
+    return genesis;
+    }
+
+#+end_src
+
+#+RESULTS: genesis
+
+
+At the moment we have a lot of separeted pieces in our puzzle,
+=Blocks=, =transactions=, the =hash= function and the function to generate the 
+=Genesis Block=. Now we are ready to put everything togheter and create the 
+"Chain". To do this, I'm going to use a simple =Linked List= to link 
+consecutive blocks.
+
+#+name: chain
+#+begin_src C
+  <<genesis>>
+  struct Blockchain{
+    struct Block* chain;
+    int size;
+  };
+
+  void add_block(struct Blockchain* blockchain, struct Block new_block){
+    blockchain->chain = realloc(blockchain->chain, (blockchain->size + 1) * sizeof(struct Block));
+    blockchain->chain[blockchain->size] = new_block;
+    blockchain->size++;
+  }
+#+end_src
+
+#+RESULTS: chain
+
+An important aspect of a =blockchain= is its =Consensus Mechanism=, that in short,
+is a way to ensure that all nodes (users) on a blockchain network agree on 
+the current state of the network and the authenticity of transactions.
+The Blockchain underlying the famous =Bitcoin= uses an algorithm called Proof-of-Work.
+The Proof-of-Work algorithm requires the =Miners= (nodes who want to add blocks to the Blockchain)
+to solve a very computationally expansive Cryptographic puzzle in exanche of a reward, that in 
+the case of =Bitcoin=, is a certian amount of the Cryptocurrency itself. 
+
+The Cryptographic puzzle require the =Miner= to find a value (=nonce=) that produces an hash 
+below a certain threshold (difficulty). This mechanism is implemnted in the code below.
+
+#+name: pow
+#+begin_src C 
+  <<chain>>
+  int proof_of_work(struct Block* block, int difficulty){
+    char target[65] = {0};
+    for(int i = 0; i<difficulty; i++){
+      strcat(target, "0");
+    }
+    do {
+      block->nonce++;
+      //Hash the block data
+      char block_data[256];
+      sprintf(block_data, "%d%ld%d%s", 
+              block->index, block->timestamp, 
+              block->nonce, block->previous_hash);
+      sha256(block_data, block->hash);
+    } while (strncmp(block->hash, target, difficulty) != 0);
+    return block->nonce;
+    }
+#+end_src
+
+#+RESULTS: pow
+
+When a new block is created, it must be added to the =blockchain=, 
+ensuring its previous hash is the hash of the last block.
+
+#+name: new_block
+#+begin_src C 
+  <<pow>>
+  struct Block create_new_block(struct Blockchain* blockchain, struct Transaction* transaction, int num_transaction){
+    struct Block new_block;
+    new_block.index = blockchain->size;
+    new_block.timestamp = time(NULL);
+    strcpy(new_block.previous_hash, blockchain->chain[blockchain->size - 1].hash);
+    new_block.nonce = 0;
+    //call proof of work to mine the block
+    proof_of_work(&new_block, DIFFICULTY);
+    return new_block;
+    }
+
+#+end_src
+
+#+RESULTS: new_block
+
+To ensure that the blockchain is valid, we should check if 
+each block's hash matches the expected values and whether
+each block correctly reference the previous one.
+
+#+name: val
+#+begin_src C
+  <<new_block>>
+  int is_blockchain_valid(struct Blockchain* blockchain){
+    for(int i = 1; i < blockchain->size; i++){
+      if(strcmp(blockchain->chain[i].previous_hash, blockchain->chain[i-1].hash) != 0){
+        return 0; // Blockchain is invalid
+      }
+      return 1; // Blockchain is valid
+    }
+  }
+#+end_src
+
+#+RESULTS: val
+
+Now that all pieces of the blockchain are created, the next step is to test the blockchain:
+1) Creating the genesis block
+2) Adding new blocks 
+3) Validating the Blockchain
+
+#+begin_src C
+
+#+end_src
