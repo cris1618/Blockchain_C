@@ -4,9 +4,16 @@
 #+STARTUP:overview hideblocks indent
 #+OPTIONS: toc:1 num:2 ^:nil
 #+PROPERTY: header-args:C++ :main yes :includes <iostream> :results output :exports both :noweb yes
-#+PROPERTY: header-args:C :main yes :includes <stdio.h> <stdlib.h> <time.h> <openssl/sha.h> <string.h> :results output :exports both :noweb yes
+#+PROPERTY: header-args:C :main yes :includes <stdio.h> <stdlib.h> <time.h> <openssl/sha.h> <string.h> :results output :exports both :noweb yes :flags -lssl -lcrypto
+
+#+LATEX_HEADER: \usepackage{float}
+#+CAPTION: "The Son of Man" by Renè Magritte (1964).
+#+ATTR_LATEX: :float nil :placement [H] :width 0.4\textwidth
+[[./Images/Magritte_TheSonOfMan.jpg]]
+
 
 * Introduction
+
 * Code
 Start by defining the structure of a block.
 #+name: block_struct
@@ -16,7 +23,7 @@ Start by defining the structure of a block.
   #define DIFFICULTY 4  
 
   // Define transaction structure
-  typedef struct {
+  typedef struct Transaction{
     char sender[50];
     char receiver[50];
     float amount;
@@ -33,7 +40,7 @@ Start by defining the structure of a block.
     Transaction* transaction;
   };
 
-  #+end_src
+#+end_src
 
 #+RESULTS: block_struct
 
@@ -44,7 +51,7 @@ Library.
 
 #+name: hash_func
 #+begin_src C
-  <<transaction_struct>>
+  <<block_struct>>
 
   void sha256(const char* str, char outputBuffer[65]){
     unsigned char hash[SHA256_DIGEST_LENGTH];
@@ -73,7 +80,6 @@ It has no previous blocks, therefore its previous hash is typically all zeros.
     genesis.timestamp = time(NULL);
     genesis.nonce = 0;
     strcpy(genesis.previous_hash, "0");
-
     sha256("Genesis Block", genesis.hash);
     return genesis;
     }
@@ -146,7 +152,7 @@ ensuring its previous hash is the hash of the last block.
 #+name: new_block
 #+begin_src C 
   <<pow>>
-  struct Block create_new_block(struct Blockchain* blockchain, struct Transaction* transaction, int num_transaction){
+  struct Block create_new_block(struct Blockchain* blockchain, struct Transaction* transaction){
     struct Block new_block;
     new_block.index = blockchain->size;
     new_block.timestamp = time(NULL);
@@ -175,7 +181,7 @@ each block correctly reference the previous one.
       }
       return 1; // Blockchain is valid
     }
-  }
+    }
 #+end_src
 
 #+RESULTS: val
@@ -185,6 +191,43 @@ Now that all pieces of the blockchain are created, the next step is to test the 
 2) Adding new blocks 
 3) Validating the Blockchain
 
-#+begin_src C
+#+begin_src C :tangle block.c :flags -lssl -lcrypto
+  <<val>>
+  int main(){
+    // Initialize the blockchain
+    struct Blockchain blockchain;
+    blockchain.chain = malloc(sizeof(struct Block));
+    blockchain.size = 0;
 
+
+    // Create the Genesis block
+    struct Block genesis = create_genesis_block();
+    add_block(&blockchain, genesis);
+
+    // Create a new transaction
+    Transaction t1;
+    strcpy(t1.sender, "Alice");
+    strcpy(t1.receiver, "Bob");
+    t1.amount = 3.14;
+
+    // Add a new block to the blockchain
+    struct Block new_block = create_new_block(&blockchain, &t1);
+    add_block(&blockchain, new_block);
+
+    // Print the blockchain so far
+    printf("Blockchain size: %d\n", blockchain.size);
+    for(int i = 0; i<blockchain.size; i++){
+      printf("Block %d: %s\n", blockchain.chain[i].index, blockchain.chain[i].hash);
+    }
+
+    // Validate the blockchain
+    if(is_blockchain_valid(&blockchain)) 
+      printf("The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.\n"); 
+    else
+      printf("\nBlockchain is invalid\n");
+
+    return 0;
+    }
 #+end_src
+
+#+RESULTS:
